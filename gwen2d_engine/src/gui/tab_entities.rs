@@ -1,22 +1,24 @@
-use std::{cell::RefCell, str::FromStr, sync::Arc};
-use eframe::egui::{Align2, ColorImage, Pos2, ScrollArea, TextureHandle, Ui, Vec2};
-use egui_modal::Modal;
-use rfd::FileDialog;
+use std::sync::Arc;
+use crate::model::{
+    entity::Entity, entity_category::EntityCategory, entity_state::EntityState, project::Project,
+};
 use eframe::egui;
-use crate::model::{entity::{self, Entity}, entity_category::EntityCategory, entity_state::EntityState, project::Project};
+use eframe::egui::{Align2, ColorImage, Pos2, TextureHandle, Ui, Vec2};
 use image::{io::Reader as ImageReader, DynamicImage};
+use tokio::sync::Mutex;
+use crate::db::engine_db::EngineDb;
 
 pub struct TabEntities {
-    selected_category : EntityCategory,
-    selected_entity :  Entity,
-    selected_state : EntityState,
+    selected_category: EntityCategory,
+    selected_entity: Entity,
+    selected_state: EntityState,
     category_creation_window: bool,
     entity_creation_window: bool,
-    state_creation_window : bool,
+    state_creation_window: bool,
     name: String,
-    new_category : String,
-    new_entity : String,
-    new_state : String,
+    new_category: String,
+    new_entity: String,
+    new_state: String,
     images: Vec<Option<TextureHandle>>,
     image_texture: Option<TextureHandle>,
 }
@@ -24,17 +26,17 @@ pub struct TabEntities {
 impl TabEntities {
     pub fn new() -> Self {
         TabEntities {
-            selected_category : EntityCategory::default(),
-            selected_entity : Entity::default(EntityCategory::default()),
-            selected_state : EntityState::default(),
+            selected_category: EntityCategory::default(),
+            selected_entity: Entity::default(EntityCategory::default()),
+            selected_state: EntityState::default(),
             category_creation_window: false,
             entity_creation_window: false,
-            state_creation_window : false,
+            state_creation_window: false,
             name: String::new(),
-            new_category : String::new(),
-            new_entity : String::new(),
-            new_state : String::new(),
-            images : vec![None; 5],
+            new_category: String::new(),
+            new_entity: String::new(),
+            new_state: String::new(),
+            images: vec![None; 5],
             image_texture: None,
         }
     }
@@ -57,7 +59,7 @@ impl TabEntities {
         Ok(ColorImage::from_rgba_unmultiplied(size, &pixels))
     }
 
-    pub fn show_ui(&mut self, ui: &mut Ui, ctx: &egui::Context, project : &mut Project) {
+    pub fn show_ui(&mut self, ui: &mut Ui, ctx: &egui::Context, project: &mut Project, db: &mut Arc<Mutex<EngineDb>>,) {
         ui.group(|ui| {
             ui.set_min_height(ctx.screen_rect().height() - 40.);
             ui.set_min_width(ctx.screen_rect().width() - 26.);
@@ -66,15 +68,14 @@ impl TabEntities {
                 egui::ComboBox::from_id_salt("Classe de l'entité")
                     .selected_text(format!("{:?}", self.selected_category.name()))
                     .show_ui(ui, |ui| {
-                                for category_value in project.categories.borrow_mut().iter_mut() {
-                                    let label = category_value.name().clone();
-                                    ui.selectable_value(
-                                        &mut self.selected_category,
-                                        category_value.to_owned(),
-                                        format!("{:?}", label),
-                                    );
-                                }
-                        
+                        for category_value in project.categories.borrow_mut().iter_mut() {
+                            let label = category_value.name().clone();
+                            ui.selectable_value(
+                                &mut self.selected_category,
+                                category_value.to_owned(),
+                                format!("{:?}", label),
+                            );
+                        }
                     });
                 if ui.button("+").clicked() {
                     self.category_creation_window = true;
@@ -85,19 +86,18 @@ impl TabEntities {
             });
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label( "Entité");
+                ui.label("Entité");
                 egui::ComboBox::from_id_salt("Nom de l'entité")
                     .selected_text(format!("{:?}", self.selected_entity.name()))
                     .show_ui(ui, |ui| {
-                                for (k,v) in project.entities.borrow_mut().iter_mut() {
-                                    let label = v.name().clone();
-                                    ui.selectable_value(
-                                        &mut self.selected_entity,
-                                        v.to_owned(),
-                                        format!("{:?}", label),
-                                    );
-                                }
-                        
+                        for (k, v) in project.entities.borrow_mut().iter_mut() {
+                            let label = v.name().clone();
+                            ui.selectable_value(
+                                &mut self.selected_entity,
+                                v.to_owned(),
+                                format!("{:?}", label),
+                            );
+                        }
                     });
                 if ui.button("+").clicked() {
                     self.entity_creation_window = true;
@@ -108,24 +108,22 @@ impl TabEntities {
             });
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label( "Etat");
+                ui.label("Etat");
                 egui::ComboBox::from_id_salt("Nom de l'état")
                     .selected_text(format!("{:?}", self.selected_state.name()))
                     .show_ui(ui, |ui| {
-                                for v in project.get_states(&self.selected_entity.name) {
-                                    let label = String::from(v.name.as_str());
-                                    ui.selectable_value(
-                                        &mut self.selected_state,
-                                        v,
-                                        format!("{:?}", label),
-                                    );
-                                }
-                        
+                        for v in project.get_states(&self.selected_entity.name) {
+                            let label = String::from(v.name.as_str());
+                            ui.selectable_value(
+                                &mut self.selected_state,
+                                v,
+                                format!("{:?}", label),
+                            );
+                        }
                     });
                 if ui.button("+").clicked() {
                     self.state_creation_window = true;
                 }
-                
                 if self.create_entity_state(ui, ctx, project, &self.selected_entity.name.clone()) {
                     self.state_creation_window = false;
                 }
@@ -133,8 +131,7 @@ impl TabEntities {
         });
     }
 
-
-    fn create_category(&mut self, ui: &mut Ui, ctx: &egui::Context, project : &mut Project) -> bool {
+    fn create_category(&mut self, ui: &mut Ui, ctx: &egui::Context, project: &mut Project) -> bool {
         let current_pos = Pos2::new(100., 100.);
         let mut cancel_window = false;
         egui::Window::new("Création d'une nouvelle catégorie")
@@ -150,7 +147,10 @@ impl TabEntities {
 
                 ui.horizontal(|ui| {
                     if ui.button("Sauvegarder").clicked() {
-                        project.categories.borrow_mut().push(EntityCategory::new(&self.new_category));
+                        project
+                            .categories
+                            .borrow_mut()
+                            .push(EntityCategory::new(&self.new_category));
                         cancel_window = true;
                     }
                     if ui.button("Annuler").clicked() {
@@ -158,10 +158,10 @@ impl TabEntities {
                     }
                 });
             });
-            cancel_window
+        cancel_window
     }
 
-    fn create_entity(&mut self, ui: &mut Ui, ctx: &egui::Context, project : &mut Project) -> bool {
+    fn create_entity(&mut self, ui: &mut Ui, ctx: &egui::Context, project: &mut Project) -> bool {
         let current_pos = Pos2::new(100., 100.);
         let mut cancel_window = false;
         egui::Window::new("Création d'une nouvelle entité")
@@ -185,10 +185,16 @@ impl TabEntities {
                     }
                 });
             });
-            cancel_window
+        cancel_window
     }
 
-    fn create_entity_state(&mut self, ui: &mut Ui, ctx: &egui::Context, project : &mut Project, entity_name : &String) -> bool {
+    fn create_entity_state(
+        &mut self,
+        ui: &mut Ui,
+        ctx: &egui::Context,
+        project: &mut Project,
+        entity_name: &String,
+    ) -> bool {
         let current_pos = Pos2::new(100., 100.);
         let mut cancel_window = false;
         egui::Window::new("Création d'un nouvel état")
@@ -212,8 +218,6 @@ impl TabEntities {
                     }
                 });
             });
-            cancel_window
+        cancel_window
     }
-
-
 }
