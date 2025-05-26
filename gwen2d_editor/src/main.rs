@@ -1,8 +1,12 @@
+use crate::gui::menu::Menu;
+use eframe::egui::Ui;
+use eframe::egui::ViewportBuilder;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use log::info;
-use eframe::egui::ViewportBuilder;
-use eframe::egui::{Align2, ColorImage, Pos2, TextureHandle, Ui, Vec2};
+
+mod gui {
+    pub mod menu;
+}
 
 #[derive(PartialEq, Debug)]
 enum EngineEditorTab {
@@ -13,27 +17,12 @@ enum EngineEditorTab {
 }
 
 struct GwenEditor {
-        runtime: Arc<Runtime>,
-        tab: EngineEditorTab,
+    runtime: Arc<Runtime>,
+    tab: EngineEditorTab,
+    menu: Menu,
 }
 
 impl GwenEditor {
-    fn show_menu(&mut self, ui: &mut Ui, ctx: &egui::Context) {
-        egui::menu::bar(ui, |ui| {
-            ui.menu_button("Project", |ui| {
-                if ui.button("New project").clicked() {
-                    ui.close_menu();
-                }
-                if ui.button("Open project").clicked() {
-                    ui.close_menu();
-                }
-                if ui.button("Quit").clicked() {
-                    std::process::exit(0);
-                }
-            });
-        });      
-    }
-
     fn show_tabs(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.tab, EngineEditorTab::Project, "Explorer");
@@ -49,21 +38,22 @@ impl Default for GwenEditor {
         Self {
             runtime: Arc::new(Runtime::new().unwrap()),
             tab: EngineEditorTab::Project,
+            menu: Menu::new(),
         }
     }
 }
 
 impl eframe::App for GwenEditor {
+    // EGUI frame update method
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            self.show_menu(ui, ctx);
+            self.menu.show(ui, ctx);
             self.show_tabs(ui, ctx);
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label("Bienvenue dans l'application !");
         });
     }
-
 }
 
 fn main() -> eframe::Result {

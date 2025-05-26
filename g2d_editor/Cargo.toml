@@ -1,0 +1,7 @@
+[package]
+name = "g2d_editor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+g2d_engine = { path = "../g2d_engine" }
