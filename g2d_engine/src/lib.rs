@@ -1,62 +1,52 @@
+use crate::gui::gui::Gui;
 use error_iter::ErrorIter;
-use image::RgbaImage;
-use log::error;
+use image::{imageops::resize, imageops::FilterType, ImageBuffer, Rgba, RgbaImage};
+use log::{error, info};
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
-use winit::event::{Event, WindowEvent};
+use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
-use winit::keyboard::KeyCode;
-use winit::window::WindowBuilder;
+use winit::keyboard;
+use winit::keyboard::KeyCode::F11;
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+use winit::platform::scancode::PhysicalKeyExtScancode;
+use winit::window::{Fullscreen, WindowBuilder};
 use winit_input_helper::WinitInputHelper;
-use crate::gui::gui::Gui;
 
 pub mod gui {
-    pub mod gui;
     pub mod framework;
+    pub mod gui;
 }
 
 pub struct G2dEngine {
     screen_width: u32,
     screen_height: u32,
-    playing : bool,
-    background: Vec<u8>,
+    playing: bool,
+    background: RgbaImage,
 }
 
 impl G2dEngine {
-    pub fn new(width: u32, height: u32, background : RgbaImage) -> Self {
-        let resized = image::imageops::resize(
-            &background,
-            width,
-            height,
-            image::imageops::FilterType::Lanczos3,
-        );
-        let img_pixels = resized.into_raw();
+    pub fn new(width: u32, height: u32, background: RgbaImage) -> Self {
         Self {
             screen_width: width,
             screen_height: height,
-            playing : false,
-            background : img_pixels
+            playing: false,
+            background,
         }
     }
 
     pub fn load_assets(&mut self) {}
 
-    pub fn draw(&self, frame: &mut [u8]) {
-        if self.playing {
-            
-        }
-        else {
-            self.draw_background(frame);
+    pub fn draw(&self, frame: &mut [u8], default_background: &ImageBuffer<Rgba<u8>, Vec<u8>>) {
+        if self.playing {} else {
+            frame.copy_from_slice(&default_background);
         }
     }
 
     pub fn update(&self) {}
-    
-    fn draw_background(&self, frame: &mut [u8]) {
-        frame.copy_from_slice(&self.background);
-    }
 
     pub fn run(&mut self, gui: Box<dyn Gui>) -> Result<(), Error> {
+        let mut is_fullscreen = false;
         let event_loop = EventLoop::new().unwrap();
         let mut input = WinitInputHelper::new();
         let window = {
@@ -65,9 +55,18 @@ impl G2dEngine {
                 .with_title("Hello Pixels + egui")
                 .with_inner_size(size)
                 .with_min_inner_size(size)
+                .with_resizable(true)
+                .with_fullscreen(None)
                 .build(&event_loop)
                 .unwrap()
         };
+        let mut size = window.inner_size();
+        let mut resized_image = resize(
+            &self.background,
+            size.width,
+            size.height,
+            FilterType::Nearest,
+        );
         let (mut pixels, mut framework) = {
             let window_size = window.inner_size();
             let scale_factor = window.scale_factor() as f32;
@@ -80,7 +79,7 @@ impl G2dEngine {
                 window_size.height,
                 scale_factor,
                 &pixels,
-                gui
+                gui,
             );
             (pixels, framework)
         };
@@ -106,14 +105,30 @@ impl G2dEngine {
                 window.request_redraw();
             }
             match event {
+                Event::WindowEvent {
+                    event:
+                    WindowEvent::KeyboardInput {
+                        event: KeyEvent { physical_key, state, .. },
+                        ..
+                    },
+                    ..
+                } => if physical_key == PhysicalKey::Code(KeyCode::F11) && state == ElementState::Pressed {
+                    info!("F11");
+                    is_fullscreen = !is_fullscreen;
+                    if is_fullscreen {
+                        window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                    } else {
+                        window.set_fullscreen(None);
+                    }
+                },
+
                 // Draw the current frame
                 Event::WindowEvent {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
                     // Draw the world
-                    self.draw(pixels.frame_mut());
-
+                    self.draw(pixels.frame_mut(), &resized_image);
                     // Prepare egui
                     framework.prepare(&window);
                     // Render everything together
@@ -128,6 +143,21 @@ impl G2dEngine {
                         log_error("pixels.render", err);
                         elwt.exit();
                     }
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::Resized(new_size),
+                    ..
+                } => {
+                    size = new_size;
+                    framework.resize(size.width, size.height);
+                    pixels.resize_surface(size.width, size.height);
+                    pixels.resize_buffer(size.width, size.height);
+                    resized_image = resize(
+                        &self.background,
+                        size.width,
+                        size.height,
+                        FilterType::Nearest,
+                    );
                 }
                 Event::WindowEvent { event, .. } => {
                     framework.handle_event(&window, &event);

@@ -40,7 +40,6 @@ impl Framework {
         };
         let renderer = Renderer::new(pixels.device(), pixels.render_texture_format(), None, 1);
         let textures = TexturesDelta::default();
-
         Self {
             egui_ctx,
             egui_state,
@@ -103,7 +102,6 @@ impl Framework {
             &self.paint_jobs,
             &self.screen_descriptor,
         );
-
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("egui"),
